@@ -4,7 +4,8 @@ import {Mutex} from 'async-mutex'
 import {
   callMethodOnDevice,
   METHOD_PUBLIC_KEY,
-  METHOD_SIGN_MESSAGE
+  METHOD_SIGN_MESSAGE,
+  isConnected
 } from './serial'
 
 import {
@@ -22,10 +23,12 @@ browser.runtime.onInstalled.addListener((_, __, reason) => {
 })
 
 browser.runtime.onMessage.addListener(async (req, sender) => {
-  let {prompt} = req
+  let {prompt, popup} = req
 
   if (prompt) {
-    return handlePromptMessage(req, sender)
+    return handlePromptMessage(req)
+  } else if (popup) {
+    return handlePopupMessage(req, sender)
   } else {
     return handleContentScriptMessage(req)
   }
@@ -43,6 +46,13 @@ browser.windows.onRemoved.addListener(windowId => {
     handlePromptMessage({condition: 'no'}, null)
   }
 })
+
+async function handlePopupMessage({method}) {
+  switch (method) {
+    case 'isConnected':
+      return isConnected()
+  }
+}
 
 async function handleContentScriptMessage({type, params, host}) {
   let level = await readPermissionLevel(host)

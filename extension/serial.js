@@ -11,6 +11,10 @@ let writer
 let lastCommand = 0
 let resolveCommand = () => {}
 
+export function isConnected() {
+  return !!writer
+}
+
 export async function callMethodOnDevice(method, params) {
   if (!writer) await initDevice()
 
@@ -78,6 +82,7 @@ async function initDevice() {
 
     port.addEventListener('disconnect', () => {
       console.log('disconnected from device')
+      writer = null
     })
 
     port.open({baudRate: 9600})
