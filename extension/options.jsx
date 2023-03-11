@@ -1,8 +1,6 @@
 import browser from 'webextension-polyfill'
 import React, {useState, useCallback, useEffect} from 'react'
 import {render} from 'react-dom'
-import {generatePrivateKey, getPublicKey, nip19} from 'nostr-tools'
-import QRCode from 'react-qr-code'
 
 import {
   getPermissionsString,
@@ -15,7 +13,6 @@ function Options() {
   let [newRelayURL, setNewRelayURL] = useState('')
   let [permissions, setPermissions] = useState()
   let [message, setMessage] = useState('')
-  let [showQR, setShowQR] = useState('')
 
   const showMessage = useCallback(msg => {
     setMessage(msg)
@@ -105,26 +102,6 @@ function Options() {
         </div>
       </div>
       <div style={{marginBottom: '10px'}}>
-        <label>
-          <div>private key:&nbsp;</div>
-          <div style={{marginLeft: '10px'}}>
-            <div style={{display: 'flex'}}>
-              <input
-                type={hidingPrivateKey ? 'password' : 'text'}
-                style={{width: '600px'}}
-                value={privKey}
-                onChange={handleKeyChange}
-                onFocus={() => hidePrivateKey(false)}
-                onBlur={() => hidePrivateKey(true)}
-              />
-              {privKey === '' && <button onClick={generate}>generate</button>}
-            </div>
-
-            <button disabled={!isKeyValid()} onClick={saveKey}>
-              save
-            </button>
-          </div>
-        </label>
         {permissions?.length > 0 && (
           <>
             <h2>permissions</h2>

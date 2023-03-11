@@ -1,5 +1,5 @@
 const METHOD_PING = '/ping'
-const METHOD_LOG = '/log'
+// const METHOD_LOG = '/log'
 
 export const METHOD_SIGN_MESSAGE = '/sign-message'
 export const METHOD_SHARED_SECRET = '/shared-secret'
@@ -36,8 +36,8 @@ async function initDevice() {
     port.addEventListener('connect', async event => {
       // reading responses
       while (port && port.readable) {
-        const textDecoder = new TextDecoderStream()
-        readableStreamClosed = port.readable.pipeTo(textDecoder.writable)
+        const textDecoder = new window.TextDecoderStream()
+        port.readable.pipeTo(textDecoder.writable)
         reader = textDecoder.readable.getReader()
         const readStringUntil = readFromSerialPort(reader)
 
@@ -65,7 +65,7 @@ async function initDevice() {
 
       await sleep(1000)
 
-      const textEncoder = new TextEncoderStream()
+      const textEncoder = new window.TextEncoderStream()
       textEncoder.readable.pipeTo(port.writable)
       writer = textEncoder.writable.getWriter()
 
@@ -85,7 +85,7 @@ async function initDevice() {
 }
 
 async function sendCommand(method, params = []) {
-  const message = [command].concat(params).join(' ')
+  const message = [method].concat(params).join(' ')
   await writer.write(message + '\n')
 }
 

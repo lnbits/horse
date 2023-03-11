@@ -1,6 +1,5 @@
 import browser from 'webextension-polyfill'
 import {validateEvent, getEventHash} from 'nostr-tools'
-import {nip04} from 'nostr-tools'
 import {Mutex} from 'async-mutex'
 import {
   callMethodOnDevice,
@@ -13,8 +12,6 @@ import {
   readPermissionLevel,
   updatePermission
 } from './common'
-
-const {encrypt, decrypt} = nip04
 
 let openPrompt = null
 let promptMutex = new Mutex()
@@ -85,11 +82,11 @@ async function handleContentScriptMessage({type, params, host}) {
         return event
       }
       case 'nip04.encrypt': {
-        let {peer, plaintext} = params
+        // let {peer, plaintext} = params
         throw new Error('not implemented')
       }
       case 'nip04.decrypt': {
-        let {peer, ciphertext} = params
+        // let {peer, ciphertext} = params
         throw new Error('not implemented')
       }
     }
