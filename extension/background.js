@@ -1,15 +1,6 @@
 /* globals chrome */
 
-import browser from 'webextension-polyfill'
-import {validateEvent, getEventHash} from 'nostr-tools'
 import {Mutex} from 'async-mutex'
-import {
-  callMethodOnDevice,
-  initDevice,
-  METHOD_PUBLIC_KEY,
-  METHOD_SIGN_MESSAGE,
-  isConnected
-} from './serial'
 
 import {
   PERMISSIONS_REQUIRED,
@@ -21,67 +12,36 @@ let openPrompt = null
 let promptMutex = new Mutex()
 let releasePromptMutex = () => {}
 
-browser.runtime.onInstalled.addListener((_, __, reason) => {
-  if (reason === 'install') browser.runtime.openOptionsPage()
+chrome.runtime.onInstalled.addListener((_, __, reason) => {
+  if (reason === 'install') chrome.runtime.openOptionsPage()
 })
 
-browser.runtime.onMessage.addListener(async (req, sender) => {
+chrome.runtime.onMessage.addListener(async (req, sender) => {
   let {prompt, popup} = req
 
   if (prompt) {
     return handlePromptMessage(req)
   } else if (popup) {
-    return handlePopupMessage(req, sender)
+    // forward to content script
+    let tabs = await chrome.tabs.query({active: true})
+    if (tabs.length) {
+      chrome.tabs.sendMessage(tabs[0].id, req)
+    }
   } else {
     return handleContentScriptMessage(req)
   }
 })
 
-browser.runtime.onMessageExternal.addListener(
-  async ({type, params}, sender) => {
-    let extensionId = new URL(sender.url).host
-    return handleContentScriptMessage({type, params, host: extensionId})
-  }
-)
+chrome.runtime.onMessageExternal.addListener(async ({type, params}, sender) => {
+  let extensionId = new URL(sender.url).host
+  return handleContentScriptMessage({type, params, host: extensionId})
+})
 
-browser.windows.onRemoved.addListener(windowId => {
+chrome.windows.onRemoved.addListener(windowId => {
   if (openPrompt) {
     handlePromptMessage({condition: 'no'}, null)
   }
 })
-
-const connectionCallbacks = {
-  onConnect() {
-    console.log('wqwewqel')
-    chrome.action.setBadgeBackgroundColor({color: 'green'})
-    chrome.action.setBadgeText({text: 'on'})
-    browser.runtime.sendMessage({isConnected: true})
-  },
-  onDisconnect() {
-    chrome.action.setBadgeText({text: ''})
-    browser.runtime.sendMessage({isConnected: false})
-  },
-  onDone() {
-    chrome.action.setBadgeBackgroundColor({color: 'black'})
-    chrome.action.setBadgeText({text: 'done'})
-    browser.runtime.sendMessage({isConnected: false})
-  },
-  onError(error) {
-    chrome.action.setBadgeBackgroundColor({color: 'red'})
-    chrome.action.setBadgeText({text: 'err'})
-    browser.runtime.sendMessage({isConnected: false})
-    browser.runtime.sendMessage({serialError: error})
-  }
-}
-
-async function handlePopupMessage({method}) {
-  switch (method) {
-    case 'isConnected':
-      return isConnected()
-    case 'connect':
-      return initDevice(connectionCallbacks)
-  }
-}
 
 async function handleContentScriptMessage({type, params, host}) {
   let level = await readPermissionLevel(host)
@@ -103,30 +63,9 @@ async function handleContentScriptMessage({type, params, host}) {
 
   try {
     switch (type) {
-      case 'getPublicKey': {
-        return callMethodOnDevice(METHOD_PUBLIC_KEY, [], connectionCallbacks)
-      }
       case 'getRelays': {
-        let results = await browser.storage.local.get('relays')
+        let results = await chrome.storage.local.get('relays')
         return results.relays || {}
-      }
-      case 'signEvent': {
-        let {event} = params
-
-        if (!event.pubkey) event.pubkey = callMethodOnDevice(METHOD_PUBLIC_KEY)
-        if (!event.id) event.id = getEventHash(event)
-        if (!validateEvent(event)) return {error: {message: 'invalid event'}}
-
-        event.sig = await callMethodOnDevice(METHOD_SIGN_MESSAGE, [event.id])
-        return event
-      }
-      case 'nip04.encrypt': {
-        // let {peer, plaintext} = params
-        throw new Error('not implemented')
-      }
-      case 'nip04.decrypt': {
-        // let {peer, ciphertext} = params
-        throw new Error('not implemented')
       }
     }
   } catch (error) {
@@ -156,7 +95,7 @@ function handlePromptMessage({id, condition, host, level}, sender) {
   releasePromptMutex()
 
   if (sender) {
-    browser.windows.remove(sender.tab.windowId)
+    chrome.windows.remove(sender.tab.windowId)
   }
 }
 
@@ -174,8 +113,8 @@ async function promptPermission(host, level, params) {
   return new Promise((resolve, reject) => {
     openPrompt = {resolve, reject}
 
-    browser.windows.create({
-      url: `${browser.runtime.getURL('prompt.html')}?${qs.toString()}`,
+    chrome.windows.create({
+      url: `${chrome.runtime.getURL('prompt.html')}?${qs.toString()}`,
       type: 'popup',
       width: 340,
       height: 330

@@ -1,10 +1,19 @@
-import browser from 'webextension-polyfill'
+/* globals chrome */
+
+import {validateEvent, getEventHash} from 'nostr-tools'
+import {
+  callMethodOnDevice,
+  initDevice,
+  METHOD_PUBLIC_KEY,
+  METHOD_SIGN_MESSAGE,
+  isConnected
+} from './serial'
 
 // inject the script that will provide window.nostr
 let script = document.createElement('script')
 script.setAttribute('async', 'false')
 script.setAttribute('type', 'text/javascript')
-script.setAttribute('src', browser.runtime.getURL('nostr-provider.js'))
+script.setAttribute('src', chrome.runtime.getURL('nostr-provider.js'))
 document.head.appendChild(script)
 
 // listen for messages from that script
@@ -14,16 +23,42 @@ window.addEventListener('message', async message => {
   if (!message.data.params) return
   if (message.data.ext !== 'horse') return
 
-  // pass on to background
-  var response
-  try {
-    response = await browser.runtime.sendMessage({
-      type: message.data.type,
-      params: message.data.params,
-      host: location.host
-    })
-  } catch (error) {
-    response = {error}
+  // if we need the serial connection, handle it here (background.js doesn't have access)
+  switch (message.data.type) {
+    case 'getPublicKey': {
+      return callMethodOnDevice(METHOD_PUBLIC_KEY, [], connectionCallbacks)
+    }
+    case 'signEvent': {
+      let {event} = message.data.params
+
+      if (!event.pubkey) event.pubkey = callMethodOnDevice(METHOD_PUBLIC_KEY)
+      if (!event.id) event.id = getEventHash(event)
+      if (!validateEvent(event)) return {error: {message: 'invalid event'}}
+
+      event.sig = await callMethodOnDevice(METHOD_SIGN_MESSAGE, [event.id])
+      break
+    }
+    case 'nip04.encrypt': {
+      // let {peer, plaintext} = params
+      throw new Error('not implemented')
+    }
+    case 'nip04.decrypt': {
+      // let {peer, ciphertext} = params
+      throw new Error('not implemented')
+    }
+    default: {
+      // pass on to background
+      var response
+      try {
+        response = await chrome.runtime.sendMessage({
+          type: message.data.type,
+          params: message.data.params,
+          host: location.host
+        })
+      } catch (error) {
+        response = {error}
+      }
+    }
   }
 
   // return response
@@ -32,3 +67,42 @@ window.addEventListener('message', async message => {
     message.origin
   )
 })
+
+chrome.runtime.onMessage.addListener(async (req, sender) => {
+  if (req.popup) {
+    return handlePopupMessage(req, sender)
+  }
+})
+
+const connectionCallbacks = {
+  onConnect() {
+    console.log('wqwewqel')
+    chrome.action.setBadgeBackgroundColor({color: 'green'})
+    chrome.action.setBadgeText({text: 'on'})
+    chrome.runtime.sendMessage({isConnected: true})
+  },
+  onDisconnect() {
+    chrome.action.setBadgeText({text: ''})
+    chrome.runtime.sendMessage({isConnected: false})
+  },
+  onDone() {
+    chrome.action.setBadgeBackgroundColor({color: 'black'})
+    chrome.action.setBadgeText({text: 'done'})
+    chrome.runtime.sendMessage({isConnected: false})
+  },
+  onError(error) {
+    chrome.action.setBadgeBackgroundColor({color: 'red'})
+    chrome.action.setBadgeText({text: 'err'})
+    chrome.runtime.sendMessage({isConnected: false})
+    chrome.runtime.sendMessage({serialError: error})
+  }
+}
+
+async function handlePopupMessage({method}) {
+  switch (method) {
+    case 'isConnected':
+      return isConnected()
+    case 'connect':
+      return initDevice(connectionCallbacks)
+  }
+}
