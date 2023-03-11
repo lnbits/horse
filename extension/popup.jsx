@@ -17,6 +17,12 @@ function Popup() {
       .catch(err => {
         setError(err.message)
       })
+
+    browser.runtime.onMessage.addListener(async req => {
+      if (req.isConnected === true) setConnected(true)
+      else if (req.isConnected === false) setConnected(false)
+      else if (req.serialError) setError(req.serialError)
+    })
   }, [])
 
   return (
@@ -24,8 +30,17 @@ function Popup() {
       <h2>horse</h2>
       <p>nostr serial event signer</p>
       <div>{error || (connected ? 'connected' : 'disconnected')}</div>
+      {!connected && <button onClick={handleConnect}>connect</button>}
     </>
   )
+
+  function handleConnect(e) {
+    e.preventDefault()
+    browser.runtime.sendMessage({
+      popup: true,
+      method: 'connect'
+    })
+  }
 }
 
 render(<Popup />, document.getElementById('main'))

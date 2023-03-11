@@ -15,16 +15,16 @@ export function isConnected() {
   return !!writer
 }
 
-export async function callMethodOnDevice(method, params) {
-  if (!writer) await initDevice()
+export async function callMethodOnDevice(method, params, opts) {
+  if (!writer) await initDevice(opts)
 
   // only one command can be pending at any time
-  // but each will only wait 4 seconds
-  if (lastCommand > Date.now() + 4000) return
+  // but each will only wait 6 seconds
+  if (lastCommand > Date.now() + 6000) return
   lastCommand = Date.now()
 
   return new Promise(async (resolve, reject) => {
-    setTimeout(reject, 4000)
+    setTimeout(reject, 6000)
     resolveCommand = resolve
 
     // send actual command
@@ -32,40 +32,44 @@ export async function callMethodOnDevice(method, params) {
   })
 }
 
-async function initDevice() {
+export async function initDevice({onConnect, onDisconnect, onError, onDone}) {
   return new Promise(async resolve => {
     let port = await navigator.serial.requestPort()
     let reader
 
     port.addEventListener('connect', async event => {
-      // reading responses
-      while (port && port.readable) {
-        const textDecoder = new window.TextDecoderStream()
-        port.readable.pipeTo(textDecoder.writable)
-        reader = textDecoder.readable.getReader()
-        const readStringUntil = readFromSerialPort(reader)
+      ;(async () => {
+        // reading responses
+        while (port && port.readable) {
+          const textDecoder = new window.TextDecoderStream()
+          port.readable.pipeTo(textDecoder.writable)
+          reader = textDecoder.readable.getReader()
+          const readStringUntil = readFromSerialPort(reader)
 
-        try {
-          while (true) {
-            const {value, done} = await readStringUntil('\n')
-            if (value) {
-              let {method, data} = parseResponse(value)
-              console.log('got', method, data)
+          try {
+            while (true) {
+              const {value, done} = await readStringUntil('\n')
+              if (value) {
+                let {method, data} = parseResponse(value)
+                console.log('got', method, data)
 
-              if (method === METHOD_PING) {
-                // ignore ping responses
-                return
+                if (method === METHOD_PING) {
+                  // ignore ping responses
+                  return
+                }
+
+                lastCommand = 0
+                resolveCommand(data)
               }
-
-              lastCommand = 0
-              resolveCommand(data)
+              if (done) return
+              onDone()
             }
-            if (done) return
+          } catch (error) {
+            console.warn(error)
+            onError(error.message)
           }
-        } catch (error) {
-          console.warn(error)
         }
-      }
+      })()
 
       await sleep(1000)
 
@@ -77,12 +81,14 @@ async function initDevice() {
       await sendCommand(METHOD_PING)
       await sendCommand(METHOD_PING, [window.location.host])
 
+      onConnect()
       resolve()
     })
 
     port.addEventListener('disconnect', () => {
       console.log('disconnected from device')
       writer = null
+      onDisconnect()
     })
 
     port.open({baudRate: 9600})

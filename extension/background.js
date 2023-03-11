@@ -1,8 +1,11 @@
+/* globals chrome */
+
 import browser from 'webextension-polyfill'
 import {validateEvent, getEventHash} from 'nostr-tools'
 import {Mutex} from 'async-mutex'
 import {
   callMethodOnDevice,
+  initDevice,
   METHOD_PUBLIC_KEY,
   METHOD_SIGN_MESSAGE,
   isConnected
@@ -47,10 +50,36 @@ browser.windows.onRemoved.addListener(windowId => {
   }
 })
 
+const connectionCallbacks = {
+  onConnect() {
+    console.log('wqwewqel')
+    chrome.action.setBadgeBackgroundColor({color: 'green'})
+    chrome.action.setBadgeText({text: 'on'})
+    browser.runtime.sendMessage({isConnected: true})
+  },
+  onDisconnect() {
+    chrome.action.setBadgeText({text: ''})
+    browser.runtime.sendMessage({isConnected: false})
+  },
+  onDone() {
+    chrome.action.setBadgeBackgroundColor({color: 'black'})
+    chrome.action.setBadgeText({text: 'done'})
+    browser.runtime.sendMessage({isConnected: false})
+  },
+  onError(error) {
+    chrome.action.setBadgeBackgroundColor({color: 'red'})
+    chrome.action.setBadgeText({text: 'err'})
+    browser.runtime.sendMessage({isConnected: false})
+    browser.runtime.sendMessage({serialError: error})
+  }
+}
+
 async function handlePopupMessage({method}) {
   switch (method) {
     case 'isConnected':
       return isConnected()
+    case 'connect':
+      return initDevice(connectionCallbacks)
   }
 }
 
@@ -75,7 +104,7 @@ async function handleContentScriptMessage({type, params, host}) {
   try {
     switch (type) {
       case 'getPublicKey': {
-        return callMethodOnDevice(METHOD_PUBLIC_KEY)
+        return callMethodOnDevice(METHOD_PUBLIC_KEY, [], connectionCallbacks)
       }
       case 'getRelays': {
         let results = await browser.storage.local.get('relays')
