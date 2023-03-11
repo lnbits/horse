@@ -26,8 +26,7 @@ export async function callMethodOnDevice(method, params, opts) {
   lastCommand = Date.now()
 
   return new Promise(async (resolve, reject) => {
-    console.log('### callMethodOnDevice', method, params, opts)
-    // setTimeout(reject, 6000)
+    setTimeout(reject, 6000)
     resolveCommand = resolve
 
     // send actual command
@@ -38,15 +37,11 @@ export async function callMethodOnDevice(method, params, opts) {
 export async function initDevice({ onConnect, onDisconnect, onError, onDone }) {
   return new Promise(async resolve => {
     let port = await navigator.serial.requestPort()
-    console.log('### port', port)
     let reader
 
 
-    console.log('### initDevice')
-
     const startSerialPortReading = async () => {
       // reading responses
-      console.log('### start reading')
       while (port && port.readable) {
         const textDecoder = new window.TextDecoderStream()
         port.readable.pipeTo(textDecoder.writable)
@@ -58,7 +53,7 @@ export async function initDevice({ onConnect, onDisconnect, onError, onDone }) {
             const { value, done } = await readStringUntil('\n')
             if (value) {
               let { method, data } = parseResponse(value)
-              console.log('got', method, data)
+              console.log('serial port data: ', method, data)
 
               if (PUBLIC_METHODS.indexOf(method) === -1) {
                 // ignore /ping, /log responses
@@ -66,7 +61,6 @@ export async function initDevice({ onConnect, onDisconnect, onError, onDone }) {
               }
 
               lastCommand = 0
-              console.log('### resolveCommand(data)', data)
               resolveCommand(data)
             }
             if (done) return
@@ -80,7 +74,10 @@ export async function initDevice({ onConnect, onDisconnect, onError, onDone }) {
     }
 
     port.open({ baudRate: 9600 })
-    await sleep(3000)
+
+    // this `sleep()` is a hack, I know!!!
+    // but `port.onconnect` is never called. I don't know why!
+    await sleep(1000)
     startSerialPortReading()
 
     const textEncoder = new window.TextEncoderStream()
@@ -105,7 +102,6 @@ export async function initDevice({ onConnect, onDisconnect, onError, onDone }) {
 
 async function sendCommand(method, params = []) {
   const message = [method].concat(params).join(' ')
-  console.log('### sendCommand:', message)
   await writer.write(message + '\n')
 }
 
