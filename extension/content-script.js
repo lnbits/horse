@@ -23,13 +23,11 @@ window.addEventListener('message', async message => {
   if (!message.data.params) return
   if (message.data.ext !== 'horse') return
 
-  console.log('### addEventListener', message)
   // if we need the serial connection, handle it here (background.js doesn't have access)
   switch (message.data.type) {
     case 'getPublicKey': {
       const publicKey = await callMethodOnDevice(METHOD_PUBLIC_KEY, [], connectionCallbacks)
       const xOnlyPublicKey = publicKey.substring(0, 64)
-      console.log('### case: xOnlyPublicKey', xOnlyPublicKey)
       window.postMessage(
         {
           ext: 'horse',
@@ -38,16 +36,24 @@ window.addEventListener('message', async message => {
         },
         '*'
       )
-      return publicKey
+      break
     }
     case 'signEvent': {
       let {event} = message.data.params
 
-      if (!event.pubkey) event.pubkey = callMethodOnDevice(METHOD_PUBLIC_KEY)
+      if (!event.pubkey) event.pubkey = (await callMethodOnDevice(METHOD_PUBLIC_KEY, [], connectionCallbacks)).substring(0, 64)
       if (!event.id) event.id = getEventHash(event)
       if (!validateEvent(event)) return {error: {message: 'invalid event'}}
 
-      event.sig = await callMethodOnDevice(METHOD_SIGN_MESSAGE, [event.id])
+      event.sig = await callMethodOnDevice(METHOD_SIGN_MESSAGE, [event.id], connectionCallbacks)
+      window.postMessage(
+        {
+          ext: 'horse',
+          id: message.data.id,
+          response: event
+        },
+        '*'
+      )
       break
     }
     case 'nip04.encrypt': {
