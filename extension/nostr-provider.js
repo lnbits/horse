@@ -33,7 +33,7 @@ window.nostr = {
       window.postMessage(
         {
           id,
-          ext: 'nos2x',
+          ext: 'horse',
           type,
           params
         },
@@ -48,13 +48,13 @@ window.addEventListener('message', message => {
     !message.data ||
     message.data.response === null ||
     message.data.response === undefined ||
-    message.data.ext !== 'nos2x' ||
+    message.data.ext !== 'horse' ||
     !window.nostr._requests[message.data.id]
   )
     return
 
   if (message.data.response.error) {
-    let error = new Error('nos2x: ' + message.data.response.error.message)
+    let error = new Error('horse: ' + message.data.response.error.message)
     error.stack = message.data.response.error.stack
     window.nostr._requests[message.data.id].reject(error)
   } else {
@@ -63,19 +63,3 @@ window.addEventListener('message', message => {
 
   delete window.nostr._requests[message.data.id]
 })
-
-// hack to replace nostr:nprofile.../etc links with something else
-let replacing = null
-document.addEventListener('mousedown', replaceNostrSchemeLink)
-async function replaceNostrSchemeLink(e) {
-  if (e.target.tagName !== 'A' || !e.target.href.startsWith('nostr:')) return
-  if (replacing === false) return
-
-  let response = await window.nostr._call('replaceURL', {url: e.target.href})
-  if (response === false) {
-    replacing = false
-    return
-  }
-
-  e.target.href = response
-}

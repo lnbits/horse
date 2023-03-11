@@ -1,17 +1,15 @@
 import browser from 'webextension-polyfill'
-import {
-  validateEvent,
-  signEvent,
-  getEventHash,
-  getPublicKey,
-  nip19
-} from 'nostr-tools'
+import {validateEvent, getEventHash} from 'nostr-tools'
 import {nip04} from 'nostr-tools'
 import {Mutex} from 'async-mutex'
+import {
+  callMethodOnDevice,
+  METHOD_PUBLIC_KEY,
+  METHOD_SIGN_MESSAGE
+} from './serial'
 
 import {
   PERMISSIONS_REQUIRED,
-  NO_PERMISSIONS_REQUIRED,
   readPermissionLevel,
   updatePermission
 } from './common'
@@ -50,75 +48,27 @@ browser.windows.onRemoved.addListener(windowId => {
 })
 
 async function handleContentScriptMessage({type, params, host}) {
-  if (NO_PERMISSIONS_REQUIRED[type]) {
-    // authorized, and we won't do anything with private key here, so do a separate handler
-    switch (type) {
-      case 'replaceURL': {
-        let {protocol_handler: ph} = await browser.storage.local.get([
-          'protocol_handler'
-        ])
-        if (!ph) return false
+  let level = await readPermissionLevel(host)
 
-        let {url} = params
-        let raw = url.split('nostr:')[1]
-        let {type, data} = nip19.decode(raw)
-        let replacements = {
-          raw,
-          hrp: type,
-          hex:
-            type === 'npub' || type === 'note'
-              ? data
-              : type === 'nprofile'
-              ? data.pubkey
-              : type === 'nevent'
-              ? data.id
-              : null,
-          p_or_e: {npub: 'p', note: 'e', nprofile: 'p', nevent: 'e'}[type],
-          u_or_n: {npub: 'u', note: 'n', nprofile: 'u', nevent: 'n'}[type],
-          relay0: type === 'nprofile' ? data.relays[0] : null,
-          relay1: type === 'nprofile' ? data.relays[1] : null,
-          relay2: type === 'nprofile' ? data.relays[2] : null
-        }
-        let result = ph
-        Object.entries(replacements).forEach(([pattern, value]) => {
-          result = result.replace(new RegExp(`{ *${pattern} *}`, 'g'), value)
-        })
-
-        return result
-      }
-    }
-
-    return
+  if (level >= PERMISSIONS_REQUIRED[type]) {
+    // authorized, proceed
   } else {
-    let level = await readPermissionLevel(host)
-
-    if (level >= PERMISSIONS_REQUIRED[type]) {
+    // ask for authorization
+    try {
+      await promptPermission(host, PERMISSIONS_REQUIRED[type], params)
       // authorized, proceed
-    } else {
-      // ask for authorization
-      try {
-        await promptPermission(host, PERMISSIONS_REQUIRED[type], params)
-        // authorized, proceed
-      } catch (_) {
-        // not authorized, stop here
-        return {
-          error: `insufficient permissions, required ${PERMISSIONS_REQUIRED[type]}`
-        }
+    } catch (_) {
+      // not authorized, stop here
+      return {
+        error: `insufficient permissions, required ${PERMISSIONS_REQUIRED[type]}`
       }
     }
   }
-
-  let results = await browser.storage.local.get('private_key')
-  if (!results || !results.private_key) {
-    return {error: 'no private key found'}
-  }
-
-  let sk = results.private_key
 
   try {
     switch (type) {
       case 'getPublicKey': {
-        return getPublicKey(sk)
+        return callMethodOnDevice(METHOD_PUBLIC_KEY)
       }
       case 'getRelays': {
         let results = await browser.storage.local.get('relays')
@@ -127,20 +77,20 @@ async function handleContentScriptMessage({type, params, host}) {
       case 'signEvent': {
         let {event} = params
 
-        if (!event.pubkey) event.pubkey = getPublicKey(sk)
+        if (!event.pubkey) event.pubkey = callMethodOnDevice(METHOD_PUBLIC_KEY)
         if (!event.id) event.id = getEventHash(event)
         if (!validateEvent(event)) return {error: {message: 'invalid event'}}
 
-        event.sig = await signEvent(event, sk)
+        event.sig = await callMethodOnDevice(METHOD_SIGN_MESSAGE, [event.id])
         return event
       }
       case 'nip04.encrypt': {
         let {peer, plaintext} = params
-        return encrypt(sk, peer, plaintext)
+        throw new Error('not implemented')
       }
       case 'nip04.decrypt': {
         let {peer, ciphertext} = params
-        return decrypt(sk, peer, ciphertext)
+        throw new Error('not implemented')
       }
     }
   } catch (error) {

@@ -1,9 +1,5 @@
 import browser from 'webextension-polyfill'
 
-export const NO_PERMISSIONS_REQUIRED = {
-  replaceURL: true
-}
-
 export const PERMISSIONS_REQUIRED = {
   getPublicKey: 1,
   getRelays: 5,

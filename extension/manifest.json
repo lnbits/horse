@@ -1,8 +1,8 @@
 {
-  "name": "nos2x",
-  "description": "Nostr Signer Extension",
-  "version": "1.8.2",
-  "homepage_url": "https://github.com/fiatjaf/nos2x",
+  "name": "horse",
+  "description": "Hardware Remote Signer of Events",
+  "version": "0.0.1",
+  "homepage_url": "https://github.com/fiatjaf/horse",
   "manifest_version": 3,
   "icons": {
     "16": "icons/16x16.png",
@@ -15,7 +15,7 @@
     "service_worker": "background.build.js"
   },
   "action": {
-    "default_title": "nos2x",
+    "default_title": "horse",
     "default_popup": "popup.html"
   },
   "content_scripts": [
