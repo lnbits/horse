@@ -17,18 +17,14 @@ chrome.runtime.onInstalled.addListener((_, __, reason) => {
 })
 
 chrome.runtime.onMessage.addListener(async (req, sender) => {
-  let {prompt, popup} = req
+  let {prompt, cs, serial} = req
 
   if (prompt) {
     return handlePromptMessage(req)
-  } else if (popup) {
-    // forward to content script
-    let tabs = await chrome.tabs.query({active: true})
-    if (tabs.length) {
-      chrome.tabs.sendMessage(tabs[0].id, req)
-    }
-  } else {
+  } else if (cs) {
     return handleContentScriptMessage(req)
+  } else if (serial) {
+    return handleSerialStatus(req, sender)
   }
 })
 
@@ -42,6 +38,27 @@ chrome.windows.onRemoved.addListener(windowId => {
     handlePromptMessage({condition: 'no'}, null)
   }
 })
+
+function handleSerialStatus({connect, disconnect, done, error}, sender) {
+  if (error) {
+    chrome.action.setBadgeBackgroundColor({color: 'red', tabId: sender.tab.id})
+    chrome.action.setBadgeText({text: 'err', tabId: sender.tab.id})
+  } else if (done) {
+    chrome.action.setBadgeBackgroundColor({
+      color: 'black',
+      tabId: sender.tab.id
+    })
+    chrome.action.setBadgeText({text: 'done', tabId: sender.tab.id})
+  } else if (connect) {
+    chrome.action.setBadgeBackgroundColor({
+      color: 'green',
+      tabId: sender.tab.id
+    })
+    chrome.action.setBadgeText({text: 'on', tabId: sender.tab.id})
+  } else if (disconnect) {
+    chrome.action.setBadgeText({text: '', tabId: sender.tab.id})
+  }
+}
 
 async function handleContentScriptMessage({type, params, host}) {
   let level = await readPermissionLevel(host)

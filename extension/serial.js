@@ -5,20 +5,28 @@ export const METHOD_SIGN_MESSAGE = '/sign-message'
 export const METHOD_SHARED_SECRET = '/shared-secret'
 export const METHOD_PUBLIC_KEY = '/public-key'
 
-export const PUBLIC_METHODS = [METHOD_PUBLIC_KEY, METHOD_SIGN_MESSAGE, METHOD_SHARED_SECRET]
+export const PUBLIC_METHODS = [
+  METHOD_PUBLIC_KEY,
+  METHOD_SIGN_MESSAGE,
+  METHOD_SHARED_SECRET
+]
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
 let writer
 let lastCommand = 0
-let resolveCommand = () => { }
+let resolveCommand = () => {}
 
 export function isConnected() {
   return !!writer
 }
 
 export async function callMethodOnDevice(method, params, opts) {
-  if (!writer) await initDevice(opts)
+  try {
+    if (!writer) await initDevice(opts)
+  } catch (err) {
+    return
+  }
 
   // only one command can be pending at any time
   // but each will only wait 6 seconds
@@ -34,11 +42,10 @@ export async function callMethodOnDevice(method, params, opts) {
   })
 }
 
-export async function initDevice({ onConnect, onDisconnect, onError, onDone }) {
+export async function initDevice({onConnect, onDisconnect, onError, onDone}) {
   return new Promise(async resolve => {
     let port = await navigator.serial.requestPort()
     let reader
-
 
     const startSerialPortReading = async () => {
       // reading responses
@@ -50,9 +57,9 @@ export async function initDevice({ onConnect, onDisconnect, onError, onDone }) {
 
         try {
           while (true) {
-            const { value, done } = await readStringUntil('\n')
+            const {value, done} = await readStringUntil('\n')
             if (value) {
-              let { method, data } = parseResponse(value)
+              let {method, data} = parseResponse(value)
               console.log('serial port data: ', method, data)
 
               if (PUBLIC_METHODS.indexOf(method) === -1) {
@@ -67,13 +74,13 @@ export async function initDevice({ onConnect, onDisconnect, onError, onDone }) {
             onDone()
           }
         } catch (error) {
-          console.warn(error)
           onError(error.message)
+          throw error
         }
       }
     }
 
-    port.open({ baudRate: 9600 })
+    port.open({baudRate: 9600})
 
     // this `sleep()` is a hack, I know!!!
     // but `port.onconnect` is never called. I don't know why!
@@ -90,7 +97,6 @@ export async function initDevice({ onConnect, onDisconnect, onError, onDone }) {
 
     onConnect()
     resolve()
-
 
     port.addEventListener('disconnect', () => {
       console.log('disconnected from device')
@@ -118,7 +124,7 @@ function readFromSerialPort(reader) {
       partialChunk = undefined
     }
     while (true) {
-      const { value, done } = await reader.read()
+      const {value, done} = await reader.read()
       if (value) {
         const values = value.split(separator)
         // found one or more separators
@@ -126,11 +132,11 @@ function readFromSerialPort(reader) {
           chunks.push(values.shift()) // first element
           partialChunk = values.pop() // last element
           fulliness = values // full lines
-          return { value: chunks.join('').trim(), done: false }
+          return {value: chunks.join('').trim(), done: false}
         }
         chunks.push(value)
       }
-      if (done) return { value: chunks.join('').trim(), done: true }
+      if (done) return {value: chunks.join('').trim(), done: true}
     }
   }
   return readStringUntil
@@ -140,5 +146,5 @@ function parseResponse(value) {
   const method = value.split(' ')[0]
   const data = value.substring(method.length).trim()
 
-  return { method, data }
+  return {method, data}
 }

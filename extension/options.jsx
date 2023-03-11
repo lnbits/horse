@@ -1,4 +1,5 @@
-import browser from 'webextension-polyfill'
+/* globals chrome */
+
 import React, {useState, useCallback, useEffect} from 'react'
 import {render} from 'react-dom'
 
@@ -20,7 +21,7 @@ function Options() {
   })
 
   useEffect(() => {
-    browser.storage.local.get(['relays']).then(results => {
+    chrome.storage.local.get(['relays']).then(results => {
       if (results.relays) {
         let relaysList = []
         for (let url in results.relays) {
@@ -182,7 +183,7 @@ function Options() {
   }
 
   async function saveRelays() {
-    await browser.storage.local.set({
+    await chrome.storage.local.set({
       relays: Object.fromEntries(
         relays
           .filter(({url}) => url.trim() !== '')

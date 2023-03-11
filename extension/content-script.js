@@ -3,10 +3,8 @@
 import {validateEvent, getEventHash} from 'nostr-tools'
 import {
   callMethodOnDevice,
-  initDevice,
   METHOD_PUBLIC_KEY,
-  METHOD_SIGN_MESSAGE,
-  isConnected
+  METHOD_SIGN_MESSAGE
 } from './serial'
 
 // inject the script that will provide window.nostr
@@ -26,34 +24,32 @@ window.addEventListener('message', async message => {
   // if we need the serial connection, handle it here (background.js doesn't have access)
   switch (message.data.type) {
     case 'getPublicKey': {
-      const publicKey = await callMethodOnDevice(METHOD_PUBLIC_KEY, [], connectionCallbacks)
-      const xOnlyPublicKey = publicKey.substring(0, 64)
-      window.postMessage(
-        {
-          ext: 'horse',
-          id: message.data.id,
-          response: xOnlyPublicKey
-        },
-        '*'
+      response = await callMethodOnDevice(
+        METHOD_PUBLIC_KEY,
+        [],
+        connectionCallbacks
       )
       break
     }
     case 'signEvent': {
       let {event} = message.data.params
 
-      if (!event.pubkey) event.pubkey = (await callMethodOnDevice(METHOD_PUBLIC_KEY, [], connectionCallbacks)).substring(0, 64)
+      if (!event.pubkey)
+        event.pubkey = await callMethodOnDevice(
+          METHOD_PUBLIC_KEY,
+          [],
+          connectionCallbacks
+        )
+      if (!event.created_at) event.created_at = Math.round(Date.now() / 1000)
       if (!event.id) event.id = getEventHash(event)
       if (!validateEvent(event)) return {error: {message: 'invalid event'}}
 
-      event.sig = await callMethodOnDevice(METHOD_SIGN_MESSAGE, [event.id], connectionCallbacks)
-      window.postMessage(
-        {
-          ext: 'horse',
-          id: message.data.id,
-          response: event
-        },
-        '*'
+      event.sig = await callMethodOnDevice(
+        METHOD_SIGN_MESSAGE,
+        [event.id],
+        connectionCallbacks
       )
+      response = event
       break
     }
     case 'nip04.encrypt': {
@@ -71,7 +67,8 @@ window.addEventListener('message', async message => {
         response = await chrome.runtime.sendMessage({
           type: message.data.type,
           params: message.data.params,
-          host: location.host
+          host: location.host,
+          cs: true
         })
       } catch (error) {
         response = {error}
@@ -86,44 +83,17 @@ window.addEventListener('message', async message => {
   )
 })
 
-chrome.runtime.onMessage.addListener(async (req, sender) => {
-  if (req.popup) {
-    return handlePopupMessage(req, sender)
-  }
-})
-
 const connectionCallbacks = {
   onConnect() {
-    console.log('### chrome.action', chrome.action)
-    // chrome.action.setBadgeBackgroundColor({color: 'green'})
-    // chrome.action.setBadgeText({text: 'on'})
-    // chrome.runtime.sendMessage({isConnected: true})
+    chrome.runtime.sendMessage({connect: true, serial: true})
   },
   onDisconnect() {
-    console.log('### onDisconnect')
-    // chrome.action.setBadgeText({text: ''})
-    // chrome.runtime.sendMessage({isConnected: false})
+    chrome.runtime.sendMessage({disconnect: true, serial: true})
   },
   onDone() {
-    console.log('### onDone')
-    // chrome.action.setBadgeBackgroundColor({color: 'black'})
-    // chrome.action.setBadgeText({text: 'done'})
-    // chrome.runtime.sendMessage({isConnected: false})
+    chrome.runtime.sendMessage({done: true, serial: true})
   },
   onError(error) {
-    console.log('### onError', error)
-    // chrome.action.setBadgeBackgroundColor({color: 'red'})
-    // chrome.action.setBadgeText({text: 'err'})
-    // chrome.runtime.sendMessage({isConnected: false})
-    // chrome.runtime.sendMessage({serialError: error})
-  }
-}
-
-async function handlePopupMessage({method}) {
-  switch (method) {
-    case 'isConnected':
-      return isConnected()
-    case 'connect':
-      return initDevice(connectionCallbacks)
+    chrome.runtime.sendMessage({error, serial: true})
   }
 }
