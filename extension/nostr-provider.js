@@ -9,7 +9,7 @@ window.nostr = {
   },
 
   async signEvent(event) {
-    return this._call('signEvent', {event})
+    return await this._call('signEvent', {event})
   },
 
   async getRelays() {

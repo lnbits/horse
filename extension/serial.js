@@ -5,11 +5,13 @@ export const METHOD_SIGN_MESSAGE = '/sign-message'
 export const METHOD_SHARED_SECRET = '/shared-secret'
 export const METHOD_PUBLIC_KEY = '/public-key'
 
+export const PUBLIC_METHODS = [METHOD_PUBLIC_KEY, METHOD_SIGN_MESSAGE, METHOD_SHARED_SECRET]
+
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
 let writer
 let lastCommand = 0
-let resolveCommand = () => {}
+let resolveCommand = () => { }
 
 export function isConnected() {
   return !!writer
@@ -32,66 +34,69 @@ export async function callMethodOnDevice(method, params, opts) {
   })
 }
 
-export async function initDevice({onConnect, onDisconnect, onError, onDone}) {
+export async function initDevice({ onConnect, onDisconnect, onError, onDone }) {
   return new Promise(async resolve => {
     let port = await navigator.serial.requestPort()
     let reader
 
-    port.addEventListener('connect', async event => {
-      ;(async () => {
-        // reading responses
-        while (port && port.readable) {
-          const textDecoder = new window.TextDecoderStream()
-          port.readable.pipeTo(textDecoder.writable)
-          reader = textDecoder.readable.getReader()
-          const readStringUntil = readFromSerialPort(reader)
 
-          try {
-            while (true) {
-              const {value, done} = await readStringUntil('\n')
-              if (value) {
-                let {method, data} = parseResponse(value)
-                console.log('got', method, data)
+    const startSerialPortReading = async () => {
+      // reading responses
+      while (port && port.readable) {
+        const textDecoder = new window.TextDecoderStream()
+        port.readable.pipeTo(textDecoder.writable)
+        reader = textDecoder.readable.getReader()
+        const readStringUntil = readFromSerialPort(reader)
 
-                if (method === METHOD_PING) {
-                  // ignore ping responses
-                  return
-                }
+        try {
+          while (true) {
+            const { value, done } = await readStringUntil('\n')
+            if (value) {
+              let { method, data } = parseResponse(value)
+              console.log('serial port data: ', method, data)
 
-                lastCommand = 0
-                resolveCommand(data)
+              if (PUBLIC_METHODS.indexOf(method) === -1) {
+                // ignore /ping, /log responses
+                continue
               }
-              if (done) return
-              onDone()
+
+              lastCommand = 0
+              resolveCommand(data)
             }
-          } catch (error) {
-            console.warn(error)
-            onError(error.message)
+            if (done) return
+            onDone()
           }
+        } catch (error) {
+          console.warn(error)
+          onError(error.message)
         }
-      })()
+      }
+    }
 
-      await sleep(1000)
+    port.open({ baudRate: 9600 })
 
-      const textEncoder = new window.TextEncoderStream()
-      textEncoder.readable.pipeTo(port.writable)
-      writer = textEncoder.writable.getWriter()
+    // this `sleep()` is a hack, I know!!!
+    // but `port.onconnect` is never called. I don't know why!
+    await sleep(1000)
+    startSerialPortReading()
 
-      // send ping first
-      await sendCommand(METHOD_PING)
-      await sendCommand(METHOD_PING, [window.location.host])
+    const textEncoder = new window.TextEncoderStream()
+    textEncoder.readable.pipeTo(port.writable)
+    writer = textEncoder.writable.getWriter()
 
-      onConnect()
-      resolve()
-    })
+    // send ping first
+    await sendCommand(METHOD_PING)
+    await sendCommand(METHOD_PING, [window.location.host])
+
+    onConnect()
+    resolve()
+
 
     port.addEventListener('disconnect', () => {
       console.log('disconnected from device')
       writer = null
       onDisconnect()
     })
-
-    port.open({baudRate: 9600})
   })
 }
 
@@ -113,7 +118,7 @@ function readFromSerialPort(reader) {
       partialChunk = undefined
     }
     while (true) {
-      const {value, done} = await reader.read()
+      const { value, done } = await reader.read()
       if (value) {
         const values = value.split(separator)
         // found one or more separators
@@ -121,11 +126,11 @@ function readFromSerialPort(reader) {
           chunks.push(values.shift()) // first element
           partialChunk = values.pop() // last element
           fulliness = values // full lines
-          return {value: chunks.join('').trim(), done: false}
+          return { value: chunks.join('').trim(), done: false }
         }
         chunks.push(value)
       }
-      if (done) return {value: chunks.join('').trim(), done: true}
+      if (done) return { value: chunks.join('').trim(), done: true }
     }
   }
   return readStringUntil
@@ -135,5 +140,5 @@ function parseResponse(value) {
   const method = value.split(' ')[0]
   const data = value.substring(method.length).trim()
 
-  return {method, data}
+  return { method, data }
 }

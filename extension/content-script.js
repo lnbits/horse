@@ -26,16 +26,34 @@ window.addEventListener('message', async message => {
   // if we need the serial connection, handle it here (background.js doesn't have access)
   switch (message.data.type) {
     case 'getPublicKey': {
-      return callMethodOnDevice(METHOD_PUBLIC_KEY, [], connectionCallbacks)
+      const publicKey = await callMethodOnDevice(METHOD_PUBLIC_KEY, [], connectionCallbacks)
+      const xOnlyPublicKey = publicKey.substring(0, 64)
+      window.postMessage(
+        {
+          ext: 'horse',
+          id: message.data.id,
+          response: xOnlyPublicKey
+        },
+        '*'
+      )
+      break
     }
     case 'signEvent': {
       let {event} = message.data.params
 
-      if (!event.pubkey) event.pubkey = callMethodOnDevice(METHOD_PUBLIC_KEY)
+      if (!event.pubkey) event.pubkey = (await callMethodOnDevice(METHOD_PUBLIC_KEY, [], connectionCallbacks)).substring(0, 64)
       if (!event.id) event.id = getEventHash(event)
       if (!validateEvent(event)) return {error: {message: 'invalid event'}}
 
-      event.sig = await callMethodOnDevice(METHOD_SIGN_MESSAGE, [event.id])
+      event.sig = await callMethodOnDevice(METHOD_SIGN_MESSAGE, [event.id], connectionCallbacks)
+      window.postMessage(
+        {
+          ext: 'horse',
+          id: message.data.id,
+          response: event
+        },
+        '*'
+      )
       break
     }
     case 'nip04.encrypt': {
@@ -76,25 +94,28 @@ chrome.runtime.onMessage.addListener(async (req, sender) => {
 
 const connectionCallbacks = {
   onConnect() {
-    console.log('wqwewqel')
-    chrome.action.setBadgeBackgroundColor({color: 'green'})
-    chrome.action.setBadgeText({text: 'on'})
-    chrome.runtime.sendMessage({isConnected: true})
+    console.log('### chrome.action', chrome.action)
+    // chrome.action.setBadgeBackgroundColor({color: 'green'})
+    // chrome.action.setBadgeText({text: 'on'})
+    // chrome.runtime.sendMessage({isConnected: true})
   },
   onDisconnect() {
-    chrome.action.setBadgeText({text: ''})
-    chrome.runtime.sendMessage({isConnected: false})
+    console.log('### onDisconnect')
+    // chrome.action.setBadgeText({text: ''})
+    // chrome.runtime.sendMessage({isConnected: false})
   },
   onDone() {
-    chrome.action.setBadgeBackgroundColor({color: 'black'})
-    chrome.action.setBadgeText({text: 'done'})
-    chrome.runtime.sendMessage({isConnected: false})
+    console.log('### onDone')
+    // chrome.action.setBadgeBackgroundColor({color: 'black'})
+    // chrome.action.setBadgeText({text: 'done'})
+    // chrome.runtime.sendMessage({isConnected: false})
   },
   onError(error) {
-    chrome.action.setBadgeBackgroundColor({color: 'red'})
-    chrome.action.setBadgeText({text: 'err'})
-    chrome.runtime.sendMessage({isConnected: false})
-    chrome.runtime.sendMessage({serialError: error})
+    console.log('### onError', error)
+    // chrome.action.setBadgeBackgroundColor({color: 'red'})
+    // chrome.action.setBadgeText({text: 'err'})
+    // chrome.runtime.sendMessage({isConnected: false})
+    // chrome.runtime.sendMessage({serialError: error})
   }
 }
 
