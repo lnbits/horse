@@ -11,7 +11,7 @@ import {
 import { decrypt, encrypt, xOnlyToXY } from './utils'
 
 // inject the script that will provide window.nostr
-let script = document.createElement('script')
+const script = document.createElement('script')
 script.setAttribute('async', 'false')
 script.setAttribute('type', 'text/javascript')
 script.setAttribute('src', chrome.runtime.getURL('nostr-provider.js'))
@@ -45,7 +45,7 @@ const handleMessage = async (message) => {
         )
       }
       case 'signEvent': {
-        let { event } = message.data.params
+        const { event } = message.data.params
 
         if (!event.pubkey)
           event.pubkey = await callMethodOnDevice(
