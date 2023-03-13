@@ -86,7 +86,6 @@ export async function initDevice({ onConnect, onDisconnect, onError, onDone }) {
               onDone()
               return
             }
-            onDone()
           }
         } catch (error) {
           lastCommand = 0
