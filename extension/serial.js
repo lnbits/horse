@@ -47,8 +47,15 @@ export async function callMethodOnDevice(method, params, opts) {
 
 export async function initDevice({ onConnect, onDisconnect, onError, onDone }) {
   return new Promise(async (resolve, reject) => {
-    const port = await navigator.serial.requestPort()
+    let port = null
     let reader
+    try {
+      port = await navigator.serial.requestPort()
+    } catch (error) {
+      reject(error)
+      return
+    }
+
 
     const startSerialPortReading = async () => {
       // reading responses
@@ -62,7 +69,7 @@ export async function initDevice({ onConnect, onDisconnect, onError, onDone }) {
           while (true) {
             const { value, done } = await readStringUntil('\n')
             if (value) {
-              let { method, data } = parseResponse(value)
+              const { method, data } = parseResponse(value)
               console.log('serial port data: ', method, data)
 
               if (PUBLIC_METHODS.indexOf(method) === -1) {
