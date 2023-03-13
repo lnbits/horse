@@ -73,10 +73,17 @@ export async function initDevice({ onConnect, onDisconnect, onError, onDone }) {
               lastCommand = 0
               resolveCommand(data)
             }
-            if (done) return
+            if (done) {
+              lastCommand = 0
+              writer = null
+              onDone()
+              return
+            }
             onDone()
           }
         } catch (error) {
+          lastCommand = 0
+          writer = null
           onError(error.message)
           throw error
         }
@@ -85,7 +92,7 @@ export async function initDevice({ onConnect, onDisconnect, onError, onDone }) {
 
     port.open({ baudRate: 9600 })
 
-    // this `sleep()` is a hack, I know!!!
+    // this `sleep()` is a hack, I know!
     // but `port.onconnect` is never called. I don't know why!
     await sleep(1000)
     startSerialPortReading()
@@ -103,6 +110,7 @@ export async function initDevice({ onConnect, onDisconnect, onError, onDone }) {
 
     port.addEventListener('disconnect', () => {
       console.log('disconnected from device')
+      lastCommand = 0
       writer = null
       onDisconnect()
     })
