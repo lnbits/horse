@@ -74,12 +74,7 @@ const handleMessage = async (message) => {
           [xOnlyToXY(peer)],
           connectionCallbacks
         )
-        console.log('### peer', peer)
-        console.log('### plaintext', plaintext)
-        console.log('### sharedSecret', sharedSecret)
         const ecnryptedText = await encrypt(sharedSecret, plaintext)
-        console.log('### ecnryptedText', ecnryptedText)
-        // throw new Error('not implemented, nip04.encrypt')
         return ecnryptedText
       }
       case 'nip04.decrypt': {
@@ -92,11 +87,7 @@ const handleMessage = async (message) => {
           [xOnlyToXY(peer)],
           connectionCallbacks
         )
-        console.log('### peer', peer)
-        console.log('### plaintext', ciphertext)
-        console.log('### sharedSecret', sharedSecret)
         const plainText = await decrypt(sharedSecret, ciphertext)
-        console.log('### ecnryptedText', plainText)
         return plainText
       }
       default: {

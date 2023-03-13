@@ -22,7 +22,6 @@ export function isConnected() {
 }
 
 export async function callMethodOnDevice(method, params, opts) {
-  console.log('### callMethodOnDevice', method, params, opts)
   try {
     if (!writer) await initDevice(opts)
   } catch (err) {
@@ -33,22 +32,16 @@ export async function callMethodOnDevice(method, params, opts) {
   // only one command can be pending at any time
   // but each will only wait 6 seconds
   if (lastCommand > Date.now() + 6000) {
-    console.log('#### lastCommand !!!')
     throw new Error('Previous command to device still pending!')
   }
   lastCommand = Date.now()
 
   return new Promise(async (resolve, reject) => {
-    try {
-      setTimeout(reject, 6000)
-      resolveCommand = resolve
+    setTimeout(reject, 6000)
+    resolveCommand = resolve
 
-      // send actual command
-      sendCommand(method, params)
-      console.log('### sent command', method, params)
-    } catch (error) {
-      reject(error)
-    }
+    // send actual command
+    sendCommand(method, params)
   })
 }
 
@@ -79,7 +72,6 @@ export async function initDevice({ onConnect, onDisconnect, onError, onDone }) {
                 }
 
                 lastCommand = 0
-                console.log('### resolveCommand', data)
                 resolveCommand(data)
               }
               if (done) return
