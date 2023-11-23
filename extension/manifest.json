@@ -1,7 +1,7 @@
 {
   "name": "horse",
   "description": "Hardware Remote Signer of Events",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "homepage_url": "https://github.com/fiatjaf/horse",
   "manifest_version": 3,
   "icons": {
