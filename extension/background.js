@@ -20,7 +20,7 @@ chrome.runtime.onMessage.addListener(async (req, sender) => {
   let {prompt, cs, serial} = req
 
   if (prompt) {
-    return handlePromptMessage(req)
+    return handlePromptMessage(req, sender)
   } else if (cs) {
     return handleContentScriptMessage(req)
   } else if (serial) {
